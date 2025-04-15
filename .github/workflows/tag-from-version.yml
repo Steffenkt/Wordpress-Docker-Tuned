@@ -21,10 +21,10 @@ jobs:
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
           
-          # Validierungsregel: muss X.Y.Z sein (z. B. 6.7.2)
+          # Validierungsregel: muss X.Y.Z sein (z. B. 6.7.2)
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "❌ Ungültiges Versionsformat in /VERSION: $VERSION"
-            echo "Version muss im Format X.Y.Z sein (z. B. 6.7.2)"
+            echo "Version muss im Format X.Y.Z sein (z. B. 6.7.2)"
             exit 1
           fi
 
@@ -37,21 +37,40 @@ jobs:
         run: |
           TAG=v${{ steps.version.outputs.version }}
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "✅ Tag $TAG existiert bereits"
+            echo "✅ Tag $TAG existiert bereits und wird aktualisiert"
             echo "exists=true" >> $GITHUB_OUTPUT
           else
-            echo "ℹ️ Tag $TAG existiert noch nicht"
+            echo "ℹ️ Tag $TAG existiert noch nicht und wird neu erstellt"
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create tag from VERSION
-        if: steps.check_tag.outputs.exists == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure Git
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete existing tag if it exactly matches current version
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          CURRENT_TAG="v${{ steps.version.outputs.version }}"
           
-          git tag v${{ env.VERSION }}
-          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}
-          git push origin v${{ env.VERSION }}
+          # Nur den exakt passenden Tag aktualisieren
+          echo "🔄 Aktualisiere Tag $CURRENT_TAG für aktuelle Version ${{ steps.version.outputs.version }}"
+          git tag -d $CURRENT_TAG
+          git push --delete origin $CURRENT_TAG
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or update tag from VERSION
+        run: |
+          # Tag erstellen
+          git tag v${{ steps.version.outputs.version }}
+          
+          # Nur den aktualisierten Tag pushen
+          git push origin v${{ steps.version.outputs.version }}
+          echo "✅ Tag v${{ steps.version.outputs.version }} wurde erstellt/aktualisiert"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
