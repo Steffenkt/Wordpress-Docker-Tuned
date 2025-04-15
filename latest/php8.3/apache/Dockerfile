@@ -160,42 +160,40 @@ RUN set -eux; \
 	find /etc/apache2 -type f -name '*.conf' -exec sed -ri 's/([[:space:]]*LogFormat[[:space:]]+"[^"]*)%h([^"]*")/\1%a\2/g' '{}' +
 
 RUN set -eux; \
-	version='6.7.2'; \
-	sha1='ff727df89b694749e91e357dc2329fac620b3906'; \
-	\
-	curl -o wordpress.tar.gz -fL "https://wordpress.org/wordpress-$version.tar.gz"; \
-	echo "$sha1 *wordpress.tar.gz" | sha1sum -c -; \
-	\
+    version='6.7.2'; \
+    \
+    curl -o wordpress.tar.gz -fL "https://wordpress.org/wordpress-$version.tar.gz"; \
+    \
 # upstream tarballs include ./wordpress/ so this gives us /usr/src/wordpress
-	tar -xzf wordpress.tar.gz -C /usr/src/; \
-	rm wordpress.tar.gz; \
-	\
+    tar -xzf wordpress.tar.gz -C /usr/src/; \
+    rm wordpress.tar.gz; \
+    \
 # https://wordpress.org/support/article/htaccess/
-	[ ! -e /usr/src/wordpress/.htaccess ]; \
-	{ \
-		echo '# BEGIN WordPress'; \
-		echo ''; \
-		echo 'RewriteEngine On'; \
-		echo 'RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]'; \
-		echo 'RewriteBase /'; \
-		echo 'RewriteRule ^index\.php$ - [L]'; \
-		echo 'RewriteCond %{REQUEST_FILENAME} !-f'; \
-		echo 'RewriteCond %{REQUEST_FILENAME} !-d'; \
-		echo 'RewriteRule . /index.php [L]'; \
-		echo ''; \
-		echo '# END WordPress'; \
-	} > /usr/src/wordpress/.htaccess; \
-	\
-	chown -R www-data:www-data /usr/src/wordpress; \
+    [ ! -e /usr/src/wordpress/.htaccess ]; \
+    { \
+        echo '# BEGIN WordPress'; \
+        echo ''; \
+        echo 'RewriteEngine On'; \
+        echo 'RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]'; \
+        echo 'RewriteBase /'; \
+        echo 'RewriteRule ^index\.php$ - [L]'; \
+        echo 'RewriteCond %{REQUEST_FILENAME} !-f'; \
+        echo 'RewriteCond %{REQUEST_FILENAME} !-d'; \
+        echo 'RewriteRule . /index.php [L]'; \
+        echo ''; \
+        echo '# END WordPress'; \
+    } > /usr/src/wordpress/.htaccess; \
+    \
+    chown -R www-data:www-data /usr/src/wordpress; \
 # pre-create wp-content (and single-level children) for folks who want to bind-mount themes, etc so permissions are pre-created properly instead of root:root
 # wp-content/cache: https://github.com/docker-library/wordpress/issues/534#issuecomment-705733507
-	mkdir wp-content; \
-	for dir in /usr/src/wordpress/wp-content/*/ cache; do \
-		dir="$(basename "${dir%/}")"; \
-		mkdir "wp-content/$dir"; \
-	done; \
-	chown -R www-data:www-data wp-content; \
-	chmod -R 1777 wp-content
+    mkdir wp-content; \
+    for dir in /usr/src/wordpress/wp-content/*/ cache; do \
+        dir="$(basename "${dir%/}")"; \
+        mkdir "wp-content/$dir"; \
+    done; \
+    chown -R www-data:www-data wp-content; \
+    chmod -R 1777 wp-content
 
 VOLUME /var/www/html
 
