@@ -1,9 +1,29 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Funktion für Operationen, die Root-Rechte benötigen
+run_as_root() {
+	if [ "$(id -u)" != "0" ]; then
+		exec gosu root "$@"
+	else
+		exec "$@"
+	fi
+}
+
+# Funktion für Operationen, die als www-data ausgeführt werden sollten
+run_as_www_data() {
+	if [ "$(id -u)" = "0" ]; then
+		exec gosu www-data "$@"
+	else
+		exec "$@"
+	fi
+}
+
 if [[ "$1" == apache2* ]] || [ "$1" = 'php-fpm' ]; then
 	uid="$(id -u)"
 	gid="$(id -g)"
+	
+	# Setze Variablen für User und Group basierend auf dem Umgebungsmodus
 	if [ "$uid" = '0' ]; then
 		case "$1" in
 			apache2*)
@@ -26,44 +46,21 @@ if [[ "$1" == apache2* ]] || [ "$1" = 'php-fpm' ]; then
 	fi
 
 	if [ ! -e index.php ] && [ ! -e wp-includes/version.php ]; then
-		# if the directory exists and WordPress doesn't appear to be installed AND the permissions of it are root:root, let's chown it (likely a Docker-created directory)
-		if [ "$uid" = '0' ] && [ "$(stat -c '%u:%g' .)" = '0:0' ]; then
-			chown "$user:$group" .
-		fi
-
+		# WordPress-Dateien kopieren und Berechtigungen setzen
 		echo >&2 "WordPress not found in $PWD - copying now..."
 		if [ -n "$(find -mindepth 1 -maxdepth 1 -not -name wp-content)" ]; then
 			echo >&2 "WARNING: $PWD is not empty! (copying anyhow)"
 		fi
-		sourceTarArgs=(
-			--create
-			--file -
-			--directory /usr/src/wordpress
-			--owner "$user" --group "$group"
-		)
-		targetTarArgs=(
-			--extract
-			--file -
-		)
+		
+		# Bei Bedarf Root-Berechtigungen für Dateikopier-Operationen verwenden
 		if [ "$uid" != '0' ]; then
-			# avoid "tar: .: Cannot utime: Operation not permitted" and "tar: .: Cannot change mode to rwxr-xr-x: Operation not permitted"
-			targetTarArgs+=( --no-overwrite-dir )
+			run_as_root cp -a /usr/src/wordpress/. .
+			run_as_root chown -R "$user:$group" .
+		else
+			cp -a /usr/src/wordpress/. .
+			chown -R "$user:$group" .
 		fi
-		# loop over "pluggable" content in the source, and if it already exists in the destination, skip it
-		# https://github.com/docker-library/wordpress/issues/506 ("wp-content" persisted, "akismet" updated, WordPress container restarted/recreated, "akismet" downgraded)
-		for contentPath in \
-			/usr/src/wordpress/.htaccess \
-			/usr/src/wordpress/wp-content/*/*/ \
-		; do
-			contentPath="${contentPath%/}"
-			[ -e "$contentPath" ] || continue
-			contentPath="${contentPath#/usr/src/wordpress/}" # "wp-content/plugins/akismet", etc.
-			if [ -e "$PWD/$contentPath" ]; then
-				echo >&2 "WARNING: '$PWD/$contentPath' exists! (not copying the WordPress version)"
-				sourceTarArgs+=( --exclude "./$contentPath" )
-			fi
-		done
-		tar "${sourceTarArgs[@]}" . | tar "${targetTarArgs[@]}"
+		
 		echo >&2 "Complete! WordPress has been successfully copied to $PWD"
 	fi
 
@@ -75,7 +72,7 @@ if [[ "$1" == apache2* ]] || [ "$1" = 'php-fpm' ]; then
 		; do
 			if [ -s "$wpConfigDocker" ]; then
 				echo >&2 "No 'wp-config.php' found in $PWD, but 'WORDPRESS_...' variables supplied; copying '$wpConfigDocker' (${wpEnvs[*]})"
-				# using "awk" to replace all instances of "put your unique phrase here" with a properly unique string (for AUTH_KEY and friends to have safe defaults if they aren't specified with environment variables)
+				# Generiere wp-config.php mit zufälligen Schlüsseln
 				awk '
 					/put your unique phrase here/ {
 						cmd = "head -c1m /dev/urandom | sha1sum | cut -d\\  -f1"
@@ -85,10 +82,12 @@ if [[ "$1" == apache2* ]] || [ "$1" = 'php-fpm' ]; then
 					}
 					{ print }
 				' "$wpConfigDocker" > wp-config.php
+				
+				# Setze korrekte Berechtigungen
 				if [ "$uid" = '0' ]; then
-					# attempt to ensure that wp-config.php is owned by the run user
-					# could be on a filesystem that doesn't allow chown (like some NFS setups)
 					chown "$user:$group" wp-config.php || true
+				elif [ "$uid" != '0' ]; then
+					run_as_root chown "$user:$group" wp-config.php || true
 				fi
 				break
 			fi
@@ -96,4 +95,17 @@ if [[ "$1" == apache2* ]] || [ "$1" = 'php-fpm' ]; then
 	fi
 fi
 
-exec "$@"
+# Starte Apache oder PHP-FPM als richtiger Benutzer
+if [[ "$1" == apache2* ]]; then
+	if [ "$(id -u)" = '0' ]; then
+		# Apache muss als Root starten, aber dann auf www-data wechseln
+		exec "$@"
+	else
+		# Wenn wir bereits als www-data laufen, starte Apache mit gosu root
+		# Apache wird dann intern auf www-data wechseln
+		run_as_root "$@"
+	fi
+else
+	# Andere Befehle (z.B. php-fpm) können direkt ausgeführt werden
+	exec "$@"
+fi

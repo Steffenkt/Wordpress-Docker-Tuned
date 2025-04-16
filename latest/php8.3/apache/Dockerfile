@@ -12,8 +12,17 @@ RUN set -eux; \
 	apt-get install -y --no-install-recommends \
 # Ghostscript is required for rendering PDF previews
 		ghostscript \
+		gosu \
 	; \
 	rm -rf /var/lib/apt/lists/*
+
+# Set up non-root user explicitly
+RUN set -eux; \
+	# Stelle sicher, dass die User-ID von www-data bekannt ist
+	usermod --shell /bin/bash www-data; \
+	# Erstelle Verzeichnisse, die der non-root User benötigt
+	mkdir -p /var/www/.config; \
+	chown -R www-data:www-data /var/www/
 
 # install the PHP extensions we need (https://make.wordpress.org/hosting/handbook/handbook/server-environment/#php-extensions)
 RUN set -ex; \
@@ -200,6 +209,9 @@ VOLUME /var/www/html
 COPY --chown=www-data:www-data wp-config-docker.php /usr/src/wordpress/
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Wechsle zum non-root User
+USER www-data
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
