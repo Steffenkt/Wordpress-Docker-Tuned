@@ -39,7 +39,7 @@ jobs:
           context: ./latest/php8.3/apache
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/wordpress-tuned:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/wordpress-tuned:${{ env.WP_VERSION }}-php8.3-apache
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPOSITORY }}:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPOSITORY }}:${{ env.WP_VERSION }}-php8.3-apache
           cache-from: type=gha
           cache-to: type=gha,mode=max
