@@ -210,8 +210,8 @@ COPY --chown=www-data:www-data wp-config-docker.php /usr/src/wordpress/
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Wechsle zum non-root User
-USER www-data
+# Die USER www-data Zeile wird entfernt, damit der Container als root startet
+# und docker-entrypoint.sh die Benutzerrechte verwalten kann
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
