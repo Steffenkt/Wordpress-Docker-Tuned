@@ -96,10 +96,13 @@ RUN set -ex; \
 RUN set -eux; \
 	docker-php-ext-enable opcache; \
 	{ \
-		echo 'opcache.memory_consumption=128'; \
-		echo 'opcache.interned_strings_buffer=8'; \
-		echo 'opcache.max_accelerated_files=4000'; \
-		echo 'opcache.revalidate_freq=2'; \
+		echo 'opcache.memory_consumption=256'; \
+		echo 'opcache.interned_strings_buffer=16'; \
+		echo 'opcache.max_accelerated_files=10000'; \
+		echo 'opcache.revalidate_freq=0'; \
+		echo 'opcache.validate_timestamps=1'; \
+		echo 'opcache.save_comments=1'; \
+		echo 'opcache.enable_file_override=1'; \
 	} > /usr/local/etc/php/conf.d/opcache-recommended.ini
 # https://wordpress.org/support/article/editing-wp-config-php/#configure-error-logging
 RUN { \
@@ -167,6 +170,36 @@ RUN set -eux; \
 # https://github.com/docker-library/wordpress/issues/383#issuecomment-507886512
 # (replace all instances of "%h" with "%a" in LogFormat)
 	find /etc/apache2 -type f -name '*.conf' -exec sed -ri 's/([[:space:]]*LogFormat[[:space:]]+"[^"]*)%h([^"]*")/\1%a\2/g' '{}' +
+
+# Performance Optimierungen für Apache
+RUN { \
+    echo '<IfModule mod_deflate.c>'; \
+    echo '    # Komprimiere HTML, CSS, JavaScript, Text, XML und fonts'; \
+    echo '    AddOutputFilterByType DEFLATE application/javascript'; \
+    echo '    AddOutputFilterByType DEFLATE application/rss+xml'; \
+    echo '    AddOutputFilterByType DEFLATE application/vnd.ms-fontobject'; \
+    echo '    AddOutputFilterByType DEFLATE application/x-font'; \
+    echo '    AddOutputFilterByType DEFLATE application/x-font-opentype'; \
+    echo '    AddOutputFilterByType DEFLATE application/x-font-otf'; \
+    echo '    AddOutputFilterByType DEFLATE application/x-font-truetype'; \
+    echo '    AddOutputFilterByType DEFLATE application/x-font-ttf'; \
+    echo '    AddOutputFilterByType DEFLATE application/x-javascript'; \
+    echo '    AddOutputFilterByType DEFLATE application/xhtml+xml'; \
+    echo '    AddOutputFilterByType DEFLATE application/xml'; \
+    echo '    AddOutputFilterByType DEFLATE font/opentype'; \
+    echo '    AddOutputFilterByType DEFLATE font/otf'; \
+    echo '    AddOutputFilterByType DEFLATE font/ttf'; \
+    echo '    AddOutputFilterByType DEFLATE image/svg+xml'; \
+    echo '    AddOutputFilterByType DEFLATE image/x-icon'; \
+    echo '    AddOutputFilterByType DEFLATE text/css'; \
+    echo '    AddOutputFilterByType DEFLATE text/html'; \
+    echo '    AddOutputFilterByType DEFLATE text/javascript'; \
+    echo '    AddOutputFilterByType DEFLATE text/plain'; \
+    echo '    AddOutputFilterByType DEFLATE text/xml'; \
+    echo '</IfModule>'; \
+} > /etc/apache2/conf-available/compression.conf; \
+a2enconf compression; \
+a2enmod headers deflate expires
 
 RUN set -eux; \
     version='6.8'; \

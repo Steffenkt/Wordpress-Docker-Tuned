@@ -64,6 +64,28 @@ define( 'DB_CHARSET', getenv_docker('WORDPRESS_DB_CHARSET', 'utf8') );
 /** The database collate type. Don't change this if in doubt. */
 define( 'DB_COLLATE', getenv_docker('WORDPRESS_DB_COLLATE', '') );
 
+/**
+ * Performance Optimierungen für WordPress und Elementor
+ */
+// Deaktiviere automatische Updates für bessere Performance in der Entwicklungsumgebung
+define('AUTOMATIC_UPDATER_DISABLED', true);
+define('WP_AUTO_UPDATE_CORE', false);
+
+// Reduziere Anzahl der Revisionen für bessere DB-Performance
+define('WP_POST_REVISIONS', 3);
+
+// Optimiere Datenbank-Abfragen
+define('SAVEQUERIES', false);
+
+// Heartbeat API optimieren (reduziert Last auf dem Server)
+define('WP_HEARTBEAT_INTERVAL', 60); // auf 60 Sekunden setzen
+
+// Erhöhe PHP Memory für Elementor
+define('WP_MEMORY_LIMIT', '512M');
+
+// Cache-Optimierungen
+define('WP_CACHE', true);
+
 /**#@+
  * Authentication unique keys and salts.
  *
